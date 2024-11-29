@@ -1,6 +1,8 @@
 import getCompiledContract from "./src/compile.js";
 import deployContract from "./src/deploy.js";
-import testSimpleStorage from "./test/simple-storage.js";
+// import testSimpleStorage from "./test/simple-storage.js";
+const testEncryptedERC20 = (await import("./test/encrypted-erc20.cjs")).default;
+
 import logger from "./src/utils/logger.js";
 import dotenv from "dotenv";
 
@@ -9,24 +11,24 @@ dotenv.config();
 async function main() {
   const networkUrl = process.env.PROVIDER_URL;
   const privateKey = process.env.PRIVATE_KEY;
-  const contractFile = "simple-storage.sol";
+  const gatewayUrl = process.env.GATEWAY_URL;
+  const contractFile = "encrypted-erc20.sol";
+  // const contractFile = "encrypted-erc20.sol";
 
-  const { abi } = getCompiledContract(contractFile);
+  getCompiledContract(contractFile);
 
+  const constructorArgs = ["Test Token", "TEST"];
   const { contract } = await deployContract(
     networkUrl,
     privateKey,
     contractFile,
+    constructorArgs,
   );
+  console.log(contract);
   const contractAddress = await contract.getAddress();
   logger.info(`Contract Address: ${contractAddress}`);
 
-  try {
-    await testSimpleStorage(abi, contractAddress, networkUrl, privateKey);
-    logger.info("Contract tested successfully!");
-  } catch (error) {
-    logger.error("Error testing contract:", error);
-  }
+  testEncryptedERC20(networkUrl, gatewayUrl);
 }
 
 main().catch((error) => {

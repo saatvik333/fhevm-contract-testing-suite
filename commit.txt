@@ -1,0 +1,122 @@
+diff --git a/contracts/gateway-test.sol b/contracts/gateway-test.sol
+new file mode 100644
+index 0000000..58feff4
+--- /dev/null
++++ b/contracts/gateway-test.sol
+@@ -0,0 +1,26 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.24;
++
++import "fhevm/lib/TFHE.sol";
++import "fhevm/gateway/GatewayCaller.sol";
++
++contract GatewayTest is GatewayCaller {
++  ebool xBool;
++  bool public yBool;
++
++  constructor() {
++      xBool = TFHE.asEbool(true);
++      TFHE.allow(xBool, address(this));
++  }
++
++  function requestBool() public {
++    uint256[] memory cts = new uint256[](1);
++    cts[0] = Gateway.toUint256(xBool);
++    Gateway.requestDecryption(cts, this.myCustomCallback.selector, 0, block.timestamp + 100, false);
++  }
++
++  function myCustomCallback(uint256 /*requestID*/, bool decryptedInput) public onlyGateway returns (bool) {
++    yBool = decryptedInput;
++    return yBool;
++  }
++}
+diff --git a/index.js b/index.js
+index 612597b..928bfe3 100644
+--- a/index.js
++++ b/index.js
+@@ -1,6 +1,8 @@
+ import getCompiledContract from "./src/compile.js";
+ import deployContract from "./src/deploy.js";
+-import testSimpleStorage from "./test/simple-storage.js";
++// import testSimpleStorage from "./test/simple-storage.js";
++const testEncryptedERC20 = (await import("./test/encrypted-erc20.cjs")).default;
++
+ import logger from "./src/utils/logger.js";
+ import dotenv from "dotenv";
+ 
+@@ -9,24 +11,24 @@ dotenv.config();
+ async function main() {
+   const networkUrl = process.env.PROVIDER_URL;
+   const privateKey = process.env.PRIVATE_KEY;
+-  const contractFile = "simple-storage.sol";
++  const gatewayUrl = process.env.GATEWAY_URL;
++  const contractFile = "encrypted-erc20.sol";
++  // const contractFile = "encrypted-erc20.sol";
+ 
+-  const { abi } = getCompiledContract(contractFile);
++  getCompiledContract(contractFile);
+ 
++  const constructorArgs = ["Test Token", "TEST"];
+   const { contract } = await deployContract(
+     networkUrl,
+     privateKey,
+     contractFile,
++    constructorArgs,
+   );
++  console.log(contract);
+   const contractAddress = await contract.getAddress();
+   logger.info(`Contract Address: ${contractAddress}`);
+ 
+-  try {
+-    await testSimpleStorage(abi, contractAddress, networkUrl, privateKey);
+-    logger.info("Contract tested successfully!");
+-  } catch (error) {
+-    logger.error("Error testing contract:", error);
+-  }
++  testEncryptedERC20(networkUrl, gatewayUrl);
+ }
+ 
+ main().catch((error) => {
+diff --git a/test/encrypted-erc20.cjs b/test/encrypted-erc20.cjs
+new file mode 100644
+index 0000000..8b9f25a
+--- /dev/null
++++ b/test/encrypted-erc20.cjs
+@@ -0,0 +1,17 @@
++// const logger = require("../src/utils/logger.js");
++// const { JsonRpcProvider, Wallet, Contract } = require("ethers");
++const { createInstance } = require("fhevmjs");
++const dotenv = require("dotenv");
++
++dotenv.config();
++
++async function testEncryptedERC20(networkUrl, gatewayUrl) {
++  const instance = await createInstance({
++    chainId: 9000,
++    networkUrl: networkUrl,
++    gatewayUrl: gatewayUrl,
++  });
++  console.log(instance);
++}
++
++module.exports = testEncryptedERC20;
+diff --git a/test/encrypted-erc20.js b/test/encrypted-erc20.js
+deleted file mode 100644
+index 32cd873..0000000
+--- a/test/encrypted-erc20.js
++++ /dev/null
+@@ -1,14 +0,0 @@
+-import logger from "../src/utils/logger.js";
+-import { JsonRpcProvider, Wallet, Contract } from "ethers";
+-import { initFhevm, createInstance } from "fhevmjs";
+-import dotenv from "dotenv";
+-
+-dotenv.config();
+-
+-initFhevm().then(async () => {
+-  const instance = await createInstance({
+-    chainId: 9000,
+-    networkUrl: process.env.PROVIDER_URL,
+-    gatewayUrl: process.env.GATEWAY_URL,
+-  });
+-});
